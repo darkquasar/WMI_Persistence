@@ -2,10 +2,16 @@
 A repo to hold some scripts pertaining WMI (Windows implementation of WBEM) forensics
 
 ## Usage:
+> Requires Python 3.0+
+
 python WMIPers.py Name_of_File (Usually OBJECTS.DATA)
 
 ## Description:
 This script is meant to find WMI persistence by directly parsing the contents of OBJECTS.DATA files thus not requiring access to the user's WMI namespaces. It doesn't require any particular dependencies other than standard Python libraries. The script works fine on both Windows and Linux systems. 
+OBJECTS.DATA files can be found on any of two locations: 
+- C:\Windows\System32\wbem\Repository\OBJECTS.DATA
+- C:\Windows\System32\wbem\Repository\FS\OBJECTS.DATA
+
 The code organizes all the data into a tidy <i>dict object</i> which will grow in complexity as I continue parsing relevant forensic information found in the WMI database file. This will also allow for an easy export to multiple file formats. 
 
 ## Example: The case of the Chinese RAT
