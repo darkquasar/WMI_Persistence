@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # WMIPers.py
-# Version 1.8
+# Version 1.9
 #
 # Author:
 #   Diego Perez - 2017
@@ -59,6 +59,7 @@ FilterToConsumer_dict = defaultdict(list)
 LWMIScript = []
 LWMIFilter = []
 LWMICommand = []
+DictFilter = []
 
 # This function will allow us to add data to the main Dictionary after populating it with all WMI attributes
 def UpdateDict(EventType, EventName, EventData):
@@ -76,7 +77,6 @@ def UpdateDict(EventType, EventName, EventData):
 		for k, v in FilterToConsumer_dict.items():
 			if v[0]["EventConsumerName"] in EventName or v[0]["EventFilterName"] in EventName:
 				FilterToConsumer_dict[k][0].update({'ConsumerData':EventData[1] + EventData[0]})
-
 				
 def main():
 	
@@ -86,9 +86,9 @@ def main():
 
 		# Let's first create a list of dictionaries containing all Event Bindings [Consumers + Filters + data]
 		for index, matches in enumerate(re.findall(FilterToConsumerBindings, s)):
-			FilterToConsumer_dict["Binding " + str(index)].append({"FilterToConsumerType":(matches[0].decode("latin-1")), "EventFilterName":(matches[2].decode("latin-1")), "EventFilter":"", "EventConsumerName":(matches[1].decode("latin-1")), "ConsumerData":""})
-		
-		
+			if (matches[2].decode("latin-1")) not in DictFilter:
+				DictFilter.append(matches[2].decode("latin-1"))
+				FilterToConsumer_dict["Binding " + str(index)].append({"FilterToConsumerType":(matches[0].decode("latin-1")), "EventFilterName":(matches[2].decode("latin-1")), "EventFilter":"", "EventConsumerName":(matches[1].decode("latin-1")), "ConsumerData":""})
 		
 		# Looking for All Script Event Consumers
 		if re.search(ScriptConsumer_Pattern, s):
@@ -126,7 +126,7 @@ def main():
         # Looking for CommandlineEventConsumers
 		if re.search(CommandConsumer_Pattern, s):
 			for matches in re.findall(CommandConsumer_Pattern, s):
-				#if matches[1].decode("latin-1") not in LWMICommand:
+				if matches[1].decode("latin-1") not in LWMICommand:
 					LWMICommand.append(matches[1].decode("latin-1"))
 					UpdateDict("Command", (matches[1].decode("latin-1")), [(matches[0].decode("latin-1")), (matches[2].decode("latin-1"))])
 				
@@ -135,7 +135,7 @@ def main():
 			
 		for k, v in FilterToConsumer_dict.items():
 			print(
-			"--> {0} | {1}: {2} | {3}: {4} | {5}: {6}\n {7}: {8}\n {9}: {10}\n".format(
+			"\n::::::::::::\n--> {0} | {1}: {2} | {3}: {4} | {5}: {6}\n {7}: {8}\n {9}:\r\n {10}\n::::::::::::\n".format(
 			k,
 			"FilterToConsumerType",
 			v[0]["FilterToConsumerType"],
