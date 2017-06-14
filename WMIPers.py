@@ -44,7 +44,7 @@ from collections import defaultdict
 # Defining general variables	
 
 # Precompiled objects to list all FilterToConsumerBindings
-FilterToConsumerBindings = re.compile(rb'\x80\x00__FilterToConsumerBinding\x00.*?(?:\:|)(\w*?EventConsumer)\.Name\=\"([\w\s]*)\".*?EventFilter\.Name\=\"([\w\s]*)\"')
+FilterToConsumerBindings = re.compile(br'\x80\x00__FilterToConsumerBinding\x00.*?(?:\:|)(\w*?EventConsumer)\.Name\=\"([\w\s]*)\".*?EventFilter\.Name\=\"([\w\s]*)\"')
     
 ScriptConsumer_Pattern = re.compile(br'\x80\x00ActiveScriptEventConsumer(.{2,100})\x00\x00(VBScript|JSCript|Powershell)\x00+\W(.*?)\x00[A-Z0-9]', re.DOTALL | re.I)
 
