@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # WMIPers.py
-# Version 1.9
+# Version 1.9.1
 #
 # Author:
 #   Diego Perez - 2017
@@ -50,7 +50,7 @@ ScriptConsumer_Pattern = re.compile(br'\x80\x00ActiveScriptEventConsumer(.{2,100
 
 EventFilter_Pattern = re.compile(br'\x80\x00__EventFilter.*?\b([a-zA-Z]\w.*?)\b\x00\x00\b(\w.*?)(?:\b\x00\x00\b(\w.*?)\x00\x00WQL|\B\x00\x00WQL)', re.I)
 
-CommandConsumer_Pattern = re.compile(br'\x80\x00CommandLineEventConsumer\x00\x00(.*?)\x00.*\b(\w.*?)\x00\x00(.*?)\x00[A-Z0-9]\x00[A-Z0-9]', re.I)
+CommandConsumer_Pattern = re.compile(br'\x80\x00CommandLineEventConsumer\x00\x00(.*?)(?:\x00\x00|\x00.*\b)(\w.*?)\x00\x00(.*?)\x00[A-Z0-9]\x00[A-Z0-9]', re.I)
 
 # Dictonary to contain all our findings
 FilterToConsumer_dict = defaultdict(list)
@@ -76,7 +76,7 @@ def UpdateDict(EventType, EventName, EventData):
 	if EventType == "Command":
 		for k, v in FilterToConsumer_dict.items():
 			if v[0]["EventConsumerName"] in EventName or v[0]["EventFilterName"] in EventName:
-				FilterToConsumer_dict[k][0].update({'ConsumerData':EventData[1] + EventData[0]})
+				FilterToConsumer_dict[k][0].update({'ConsumerData':EventData[2] + EventData[1] + EventData[0]})
 				
 def main():
 	
@@ -128,7 +128,7 @@ def main():
 			for matches in re.findall(CommandConsumer_Pattern, s):
 				if matches[1].decode("latin-1") not in LWMICommand:
 					LWMICommand.append(matches[1].decode("latin-1"))
-					UpdateDict("Command", (matches[1].decode("latin-1")), [(matches[0].decode("latin-1")), (matches[2].decode("latin-1"))])
+					UpdateDict("Command", (matches[1].decode("latin-1")), [(matches[0].decode("latin-1")), " ", (matches[2].decode("latin-1"))])
 				
 		else:
 			print("\n---> XXX Couldn't find any CommandlineEventConsumers XXX")
@@ -147,6 +147,7 @@ def main():
 			v[0]["EventFilter"],
 			"--> EventConsumer",
 			v[0]["ConsumerData"],))
+	file.close()
 	
 if __name__ == "__main__":
     main()
