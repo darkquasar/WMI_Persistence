@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # WMIPers.py
-# Version 1.9.1
+# Version 1.3.1
 #
 # Author:
 #   Diego Perez - 2017
@@ -38,8 +38,9 @@
 #   SOFTWARE.
 #
 
-import mmap, re, sys
+import mmap, re, sys, argparse
 from collections import defaultdict
+from os import walk
 
 # Defining general variables	
 
@@ -60,7 +61,36 @@ LWMIScript = []
 LWMIFilter = []
 LWMICommand = []
 DictFilter = []
+FilesList = []
 
+# The class that will handle all our arguments
+class Arguments(object):
+	
+	def __init__(self, args):
+		self.parser = argparse.ArgumentParser(
+			description="WMI Database Parser for Malicious Persistence Mechanisms"
+			)
+		
+		self.parser.add_argument(
+			"file",
+			help="File to be analysed",
+			type=str,
+			const='OBJECTS.DATA',
+			nargs='?'
+			)
+			
+		self.parser.add_argument(
+			"-d",
+			help="folder containing the list of OBJECTS.DATA files in this format: [anything]_OBJECTS.DATA. If not provided it defaults to the current folder",
+			type=str,
+			dest='folder',
+			)
+		
+		self.pargs = self.parser.parse_args()
+		
+	def get_args(self):
+		return self.pargs
+		
 # This function will allow us to add data to the main Dictionary after populating it with all WMI attributes
 def UpdateDict(EventType, EventName, EventData):
 	if EventType == "Script":
@@ -80,74 +110,106 @@ def UpdateDict(EventType, EventName, EventData):
 				
 def main():
 	
-	file = open(sys.argv[1], 'rb', 0)
-	with mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ) as s:
-		print("\n++++++ FILE ", sys.argv[1], " ++++++")
+	# Cathing all arguments in an instance of the Arguments class, classy right?
+	args = Arguments(sys.argv)
+	pargs = args.get_args()
+	
+	try:
+		if pargs.file:
+			FilesList.append(pargs.file)
+	except:
+		if pargs.folder:
+			pass
+		else:
+			print("Please specify a WMI Database file or a folder containing multiple files with the parameter ""-d""... Exiting")
+			exit()
+	
 
-		# Let's first create a list of dictionaries containing all Event Bindings [Consumers + Filters + data]
-		for index, matches in enumerate(re.findall(FilterToConsumerBindings, s)):
-			if (matches[2].decode("latin-1")) not in DictFilter:
-				DictFilter.append(matches[2].decode("latin-1"))
-				FilterToConsumer_dict["Binding " + str(index)].append({"FilterToConsumerType":(matches[0].decode("latin-1")), "EventFilterName":(matches[2].decode("latin-1")), "EventFilter":"", "EventConsumerName":(matches[1].decode("latin-1")), "ConsumerData":""})
+	# Obtaining the list of files in the folder specified with the parameter '-d', the walk() look breaks at the first iteration to achieve this
+	if pargs.folder:
+		if "\\" not in pargs.folder:
+			pargs.folder = pargs.folder + "\\"
+		for a, b, file_list in walk(pargs.folder):
+			for item in file_list:
+				FilesList.append(a+"\\"+item)
+			break
+		print(FilesList)
+					
+	# This loop will open each file found in the directory (or the one file if no '-d' parameter was supplied), parse it, and close it:
+	for File_Item in FilesList:
+		file = open(File_Item, 'rb', 0)
+		with mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ) as s:
+			print("\n++++++ FILE ", File_Item, " ++++++")
+
+			# Let's first create a list of dictionaries containing all Event Bindings [Consumers + Filters + data]
+			for index, matches in enumerate(re.findall(FilterToConsumerBindings, s)):
+				if (matches[2].decode("latin-1")) not in DictFilter:
+					DictFilter.append(matches[2].decode("latin-1"))
+					FilterToConsumer_dict["Binding " + str(index)].append({"FilterToConsumerType":(matches[0].decode("latin-1")), "EventFilterName":(matches[2].decode("latin-1")), "EventFilter":"", "EventConsumerName":(matches[1].decode("latin-1")), "ConsumerData":""})
+			
+			# Looking for All Script Event Consumers
+			if re.search(ScriptConsumer_Pattern, s):
+				for index, matches in enumerate(re.findall(ScriptConsumer_Pattern, s)):
+
+					# Checking if the name of the ActiveScriptEventConsumer is not in the list of collected (i.e. iterated)
+					# names, if it is, it won't print
+					if matches[0].decode("latin-1") not in LWMIScript:
+						LWMIScript.append(matches[0].decode("latin-1"))
+						UpdateDict("Script", (matches[0].decode("latin-1")), (matches[2].decode("latin-1")))
+			else:
+				print("\n---> XXX Couldn't find any ActiveScriptEventConsumers XXX")
+				
+			# Looking for All EventFilters
+			if re.search(EventFilter_Pattern, s):
+				for matches in re.findall(EventFilter_Pattern, s):
+
+					# Checking two things: a) if the name of the EventFilter is not in the list of collected (i.e. iterated)
+					# names, if it is, it won't print; b) if the EventFilter indeed belongs to a
+					# legitimate event subscription by weeding out everything that doesn't belong
+					# to the "root" namespace.
+					if "root" in matches[0].decode("latin-1"):
+						if matches[1].decode("latin-1") not in LWMIFilter:
+							LWMIFilter.append(matches[1].decode("latin-1"))
+							UpdateDict("Filter", (matches[1].decode("latin-1")), (matches[2].decode("latin-1")))
+					
+					else:
+						if matches[2].decode("latin-1") == "":
+							LWMIFilter.append(matches[0].decode("latin-1"))
+							UpdateDict("Filter", (matches[0].decode("latin-1")), (matches[1].decode("latin-1")))
+							
+			else:
+				print("\n---> XXX Couldn't find any EventFilters XXX")
+
+			# Looking for CommandlineEventConsumers
+			if re.search(CommandConsumer_Pattern, s):
+				for matches in re.findall(CommandConsumer_Pattern, s):
+					if matches[1].decode("latin-1") not in LWMICommand:
+						LWMICommand.append(matches[1].decode("latin-1"))
+						UpdateDict("Command", (matches[1].decode("latin-1")), [(matches[0].decode("latin-1")), " ", (matches[2].decode("latin-1"))])
+					
+			else:
+				print("\n---> XXX Couldn't find any CommandlineEventConsumers XXX")
+				
+			for k, v in FilterToConsumer_dict.items():
+				print(
+				"\n::::::::::::\n--> {0} | {1}: {2} | {3}: {4} | {5}: {6}\n {7}: {8}\n {9}:\r\n {10}\n::::::::::::\n".format(
+				k,
+				"FilterToConsumerType",
+				v[0]["FilterToConsumerType"],
+				"EventFilterName",
+				v[0]["EventFilterName"],
+				"EventConsumerName",
+				v[0]["EventConsumerName"],
+				"--> EventFilter",
+				v[0]["EventFilter"],
+				"--> EventConsumer",
+				v[0]["ConsumerData"],))
 		
-		# Looking for All Script Event Consumers
-		if re.search(ScriptConsumer_Pattern, s):
-			for index, matches in enumerate(re.findall(ScriptConsumer_Pattern, s)):
-
-                # Checking if the name of the ActiveScriptEventConsumer is not in the list of collected (i.e. iterated)
-                # names, if it is, it won't print
-				if matches[0].decode("latin-1") not in LWMIScript:
-					LWMIScript.append(matches[0].decode("latin-1"))
-					UpdateDict("Script", (matches[0].decode("latin-1")), (matches[2].decode("latin-1")))
-		else:
-			print("\n---> XXX Couldn't find any ActiveScriptEventConsumers XXX")
-			
-		# Looking for All EventFilters
-		if re.search(EventFilter_Pattern, s):
-			for matches in re.findall(EventFilter_Pattern, s):
-
-                # Checking two things: a) if the name of the EventFilter is not in the list of collected (i.e. iterated)
-                # names, if it is, it won't print; b) if the EventFilter indeed belongs to a
-                # legitimate event subscription by weeding out everything that doesn't belong
-                # to the "root" namespace.
-				if "root" in matches[0].decode("latin-1"):
-					if matches[1].decode("latin-1") not in LWMIFilter:
-						LWMIFilter.append(matches[1].decode("latin-1"))
-						UpdateDict("Filter", (matches[1].decode("latin-1")), (matches[2].decode("latin-1")))
-				
-				else:
-					if matches[2].decode("latin-1") == "":
-						LWMIFilter.append(matches[0].decode("latin-1"))
-						UpdateDict("Filter", (matches[0].decode("latin-1")), (matches[1].decode("latin-1")))
-						
-		else:
-			print("\n---> XXX Couldn't find any EventFilters XXX")
-
-        # Looking for CommandlineEventConsumers
-		if re.search(CommandConsumer_Pattern, s):
-			for matches in re.findall(CommandConsumer_Pattern, s):
-				if matches[1].decode("latin-1") not in LWMICommand:
-					LWMICommand.append(matches[1].decode("latin-1"))
-					UpdateDict("Command", (matches[1].decode("latin-1")), [(matches[0].decode("latin-1")), " ", (matches[2].decode("latin-1"))])
-				
-		else:
-			print("\n---> XXX Couldn't find any CommandlineEventConsumers XXX")
-			
-		for k, v in FilterToConsumer_dict.items():
-			print(
-			"\n::::::::::::\n--> {0} | {1}: {2} | {3}: {4} | {5}: {6}\n {7}: {8}\n {9}:\r\n {10}\n::::::::::::\n".format(
-			k,
-			"FilterToConsumerType",
-			v[0]["FilterToConsumerType"],
-			"EventFilterName",
-			v[0]["EventFilterName"],
-			"EventConsumerName",
-			v[0]["EventConsumerName"],
-			"--> EventFilter",
-			v[0]["EventFilter"],
-			"--> EventConsumer",
-			v[0]["ConsumerData"],))
-	file.close()
+		file.close()
 	
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nControl-C Pressed, hopefully you didn't break the keyboard ;)...")
+        sys.exit()
