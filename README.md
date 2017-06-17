@@ -4,7 +4,12 @@ A repo to hold some scripts pertaining WMI (Windows implementation of WBEM) fore
 ## Usage:
 > Requires Python 3.0+
 
+** To scan a single file **
 python WMIPers.py Name_of_File (Usually OBJECTS.DATA)
+
+** To scan multiple files in a folder **
+python WMIPers.py -d .\ # Will scan your current folder
+python WMIPers.py -d C:\WMI_Samples
 
 ## Description:
 This script is meant to find WMI persistence by directly parsing the contents of OBJECTS.DATA files thus not requiring access to the user's WMI namespaces. It doesn't require any particular dependencies other than standard Python libraries. The script works fine on both Windows and Linux systems. 
