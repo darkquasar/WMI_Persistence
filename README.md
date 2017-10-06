@@ -1,5 +1,6 @@
-# WMI_Persistence
-A repo to hold some scripts pertaining WMI (Windows implementation of WBEM) forensics
+# WMI Persistence
+A repo to hold some scripts pertaining WMI (Windows implementation of WBEM) forensics. So far implemented scripts are: 
+1. WMI Database Parser
 
 ## Usage:
 > Requires Python 3.0+
